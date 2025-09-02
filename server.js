@@ -1,14 +1,40 @@
-// server.js - Backend server for video upload and real-time updates
+// server.js - Backend server with Cloudinary for video upload
 
 const express = require('express');
 const multer = require('multer');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const cloudinary = require('cloudinary').v2;
 const WebSocket = require('ws');
 const http = require('http');
 const path = require('path');
-const fs = require('fs');
 const cors = require('cors');
 
-// Create Express app
+// --- Cloudinary Configuration ---
+// This must be configured using environment variables on your hosting platform (Render)
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// --- Multer Configuration for Cloudinary ---
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'harsh-resource-hub-videos',
+    resource_type: 'video',
+    allowed_formats: ['mp4', 'mov', 'avi', 'mkv'],
+  },
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 100 * 1024 * 1024, // 100MB limit
+  },
+});
+
+// --- Express App Setup ---
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
@@ -16,190 +42,100 @@ const wss = new WebSocket.Server({ server });
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public')); // Serve static files
-app.use('/uploads', express.static('uploads')); // Serve uploaded videos
+app.use(express.static('public')); // Serve static files like index.html and chat.html
 
-// Create uploads directory if it doesn't exist
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-// Configure multer for video upload
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, 'uploads/');
-    },
-    filename: (req, file, cb) => {
-        // Create unique filename with timestamp
-        const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(file.originalname);
-        cb(null, uniqueName);
-    }
-});
-
-const upload = multer({
-    storage: storage,
-    limits: {
-        fileSize: 100 * 1024 * 1024 // 100MB limit
-    },
-    fileFilter: (req, file, cb) => {
-        // Check if file is video
-        if (file.mimetype.startsWith('video/')) {
-            cb(null, true);
-        } else {
-            cb(new Error('Only video files are allowed'));
-        }
-    }
-});
-
-// Store video metadata in memory (in production, use a database)
-let videos = [];
-
-// WebSocket connections
-let clients = new Set();
-
-// WebSocket connection handler
+// --- WebSocket Setup ---
+const clients = new Set();
 wss.on('connection', (ws) => {
-    console.log('New client connected');
-    clients.add(ws);
-    
-    ws.on('close', () => {
-        console.log('Client disconnected');
-        clients.delete(ws);
-    });
-    
-    ws.on('error', (error) => {
-        console.error('WebSocket error:', error);
-        clients.delete(ws);
-    });
+  console.log('New client connected');
+  clients.add(ws);
+  ws.on('close', () => clients.delete(ws));
+  ws.on('error', (error) => {
+    console.error('WebSocket error:', error);
+    clients.delete(ws);
+  });
 });
 
-// Function to broadcast to all clients
 function broadcast(data) {
-    const message = JSON.stringify(data);
-    clients.forEach(client => {
-        if (client.readyState === WebSocket.OPEN) {
-            client.send(message);
-        }
-    });
+  const message = JSON.stringify(data);
+  clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(message);
+    }
+  });
 }
 
-// Routes
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+// --- API Routes ---
 
-app.get('/chat', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'chat.html'));
-});
+// API endpoint to get all recent videos from Cloudinary
+app.get('/api/videos', async (req, res) => {
+  try {
+    const result = await cloudinary.search
+      .expression('resource_type:video AND folder=harsh-resource-hub-videos')
+      .sort_by('created_at', 'desc')
+      .max_results(30)
+      .execute();
 
-// API endpoint to get all videos
-app.get('/api/videos', (req, res) => {
+    const videos = result.resources.map(v => ({
+      id: v.public_id,
+      name: v.filename,
+      url: v.secure_url,
+      size: v.bytes,
+      mimetype: `video/${v.format}`,
+      timestamp: v.created_at,
+    }));
+
     res.json(videos);
+  } catch (error) {
+    console.error('Error fetching videos from Cloudinary:', error);
+    res.status(500).json({ error: 'Failed to fetch videos' });
+  }
 });
 
-// API endpoint to upload video
+// API endpoint to upload a new video
 app.post('/api/upload-video', upload.single('video'), (req, res) => {
-    try {
-        if (!req.file) {
-            return res.status(400).json({ error: 'No video file uploaded' });
-        }
-
-        // Create video metadata
-        const videoData = {
-            id: Date.now().toString(),
-            name: req.file.originalname,
-            filename: req.file.filename,
-            url: `/uploads/${req.file.filename}`,
-            size: req.file.size,
-            mimetype: req.file.mimetype,
-            timestamp: req.body.timestamp || new Date().toISOString()
-        };
-
-        // Add to videos array (at the beginning for newest first)
-        videos.unshift(videoData);
-
-        // Keep only last 20 videos to prevent memory issues
-        if (videos.length > 20) {
-            const oldVideo = videos.pop();
-            // Optionally delete old video file
-            const oldFilePath = path.join(__dirname, 'uploads', oldVideo.filename);
-            if (fs.existsSync(oldFilePath)) {
-                fs.unlinkSync(oldFilePath);
-            }
-        }
-
-        // Broadcast new video to all connected clients
-        broadcast({
-            type: 'new_video',
-            video: videoData
-        });
-
-        console.log(`New video uploaded: ${videoData.name}`);
-        res.json({ 
-            success: true, 
-            message: 'Video uploaded successfully',
-            video: videoData 
-        });
-
-    } catch (error) {
-        console.error('Upload error:', error);
-        res.status(500).json({ error: 'Failed to upload video' });
-    }
-});
-
-// API endpoint to delete video (optional)
-app.delete('/api/videos/:id', (req, res) => {
-    const videoId = req.params.id;
-    const videoIndex = videos.findIndex(v => v.id === videoId);
-    
-    if (videoIndex === -1) {
-        return res.status(404).json({ error: 'Video not found' });
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No video file uploaded' });
     }
 
-    const video = videos[videoIndex];
-    
-    // Delete file
-    const filePath = path.join(__dirname, 'uploads', video.filename);
-    if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-    }
+    const videoData = {
+      id: req.file.filename, // Cloudinary public_id
+      name: req.file.originalname,
+      url: req.file.path, // This is the Cloudinary URL
+      size: req.file.size,
+      mimetype: req.file.mimetype,
+      timestamp: new Date().toISOString(),
+    };
 
-    // Remove from array
-    videos.splice(videoIndex, 1);
-
-    // Broadcast deletion to all clients
     broadcast({
-        type: 'video_deleted',
-        videoId: videoId
+      type: 'new_video',
+      video: videoData,
     });
 
-    res.json({ success: true, message: 'Video deleted successfully' });
+    console.log(`New video uploaded to Cloudinary: ${videoData.name}`);
+    res.json({
+      success: true,
+      message: 'Video uploaded successfully',
+      video: videoData,
+    });
+
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({ error: 'Failed to upload video' });
+  }
 });
 
-// Error handling middleware
-app.use((error, req, res, next) => {
-    if (error instanceof multer.MulterError) {
-        if (error.code === 'LIMIT_FILE_SIZE') {
-            return res.status(400).json({ error: 'File too large. Maximum size is 100MB.' });
-        }
-    }
-    console.error('Server error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-});
-
-// Start server
+// --- Server Initialization ---
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-    console.log(`Access your website at: http://localhost:${PORT}`);
-    console.log(`Chat page at: http://localhost:${PORT}/chat`);
+  console.log(`Server running on port ${PORT}`);
 });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-    console.log('SIGTERM received, shutting down gracefully');
-    server.close(() => {
-        console.log('Process terminated');
-    });
+  console.log('SIGTERM received, shutting down gracefully');
+  server.close(() => {
+    console.log('Process terminated');
+  });
 });
