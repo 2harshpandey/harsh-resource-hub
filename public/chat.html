@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat with Harsh</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            max-width: 1400px;
+            width: 100%;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 20px;
+            text-align: center;
+            position: relative;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 1.8rem;
+        }
+
+        .back-btn {
+            position: absolute;
+            top: 50%;
+            left: 20px;
+            transform: translateY(-50%);
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .back-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .main-content {
+            display: flex;
+            flex-grow: 1;
+            overflow: hidden;
+        }
+
+        .chat-wrapper {
+            flex: 2;
+            border-right: 2px solid #e0e0e0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .video-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .upload-area {
+            background: #f8f9fa;
+            border: 2px dashed #dee2e6;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            transition: all 0.3s;
+        }
+        
+        .upload-area.dragover {
+            border-color: #667eea;
+            background: #e6f3ff;
+        }
+
+        .file-input { display: none; }
+
+        .upload-btn-group {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: transform 0.3s, background-color 0.3s;
+        }
+
+        .btn:hover { transform: translateY(-2px); }
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .file-preview {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px;
+            background: #e9ecef;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        .file-name {
+            font-size: 14px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .remove-btn {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #dc3545;
+        }
+
+        .video-display { margin-top: 20px; }
+        .video-item {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            animation: fadeIn 0.5s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .video-item video {
+            width: 100%;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+
+        .video-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .video-name { font-weight: bold; color: #333; }
+        .video-time { color: #666; font-size: 12px; }
+
+        .loading, .error-message, .success-message {
+            text-align: center;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            display: none;
+        }
+        .loading { color: #667eea; }
+        .error-message { color: #dc3545; background: #f8d7da; }
+        .success-message { color: #155724; background: #d4edda; }
+
+        @media (max-width: 768px) {
+            .main-content { flex-direction: column; }
+            .chat-wrapper { border-right: none; border-bottom: 2px solid #e0e0e0; height: 50vh; }
+            .video-wrapper { height: 50vh; }
+            .header h1 { font-size: 1.5rem; }
+            .back-btn {
+                position: static;
+                transform: none;
+                margin-bottom: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <button class="back-btn" onclick="window.location.href='index.html'">← Back</button>
+            <h1>Chat & Share</h1>
+        </div>
+
+        <div class="main-content">
+            <div class="chat-wrapper">
+                <iframe src="https://deadsimplechat.com/unCdUEWRr" class="chat-iframe"></iframe>
+            </div>
+
+            <div class="video-wrapper">
+                <div class="upload-area" id="uploadArea">
+                    <h3>📹 Share a Video</h3>
+                    <p id="upload-text">Click to select or drag and drop a video file</p>
+                    <input type="file" id="videoInput" class="file-input" accept="video/*">
+                    
+                    <div class="file-preview" id="filePreview">
+                        <span class="file-name" id="fileName"></span>
+                        <button class="remove-btn" id="removeBtn">❌</button>
+                    </div>
+
+                    <div class="upload-btn-group" style="margin-top: 15px;">
+                        <button class="btn" id="chooseVideoBtn">Choose File</button>
+                        <button class="btn" id="uploadVideoBtn" disabled>Upload</button>
+                    </div>
+                </div>
+
+                <div class="error-message" id="errorMessage"></div>
+                <div class="success-message" id="successMessage"></div>
+                <div class="loading" id="loading"><p>📤 Uploading video...</p></div>
+
+                <div class="video-display" id="videoDisplay">
+                    <!-- Videos will be displayed here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const videoInput = document.getElementById('videoInput');
+        const uploadArea = document.getElementById('uploadArea');
+        const videoDisplay = document.getElementById('videoDisplay');
+        const loading = document.getElementById('loading');
+        const errorMessage = document.getElementById('errorMessage');
+        const successMessage = document.getElementById('successMessage');
+        
+        const chooseVideoBtn = document.getElementById('chooseVideoBtn');
+        const uploadVideoBtn = document.getElementById('uploadVideoBtn');
+        const removeBtn = document.getElementById('removeBtn');
+        const filePreview = document.getElementById('filePreview');
+        const fileName = document.getElementById('fileName');
+        const uploadText = document.getElementById('upload-text');
+
+        let selectedFile = null;
+
+        chooseVideoBtn.addEventListener('click', () => videoInput.click());
+        uploadVideoBtn.addEventListener('click', () => handleVideoUpload(selectedFile));
+        removeBtn.addEventListener('click', removeSelection);
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].type.startsWith('video/')) {
+                previewFile(files[0]);
+            } else {
+                showError('Please drop a valid video file');
+            }
+        });
+
+        videoInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                previewFile(e.target.files[0]);
+            }
+        });
+
+        function previewFile(file) {
+            selectedFile = file;
+            fileName.textContent = file.name;
+            filePreview.style.display = 'flex';
+            uploadVideoBtn.disabled = false;
+            chooseVideoBtn.style.display = 'none';
+            uploadText.style.display = 'none';
+        }
+
+        function removeSelection() {
+            selectedFile = null;
+            videoInput.value = ''; // Clear the file input
+            filePreview.style.display = 'none';
+            uploadVideoBtn.disabled = true;
+            chooseVideoBtn.style.display = 'inline-block';
+            uploadText.style.display = 'block';
+        }
+
+        function handleVideoUpload(file) {
+            if (!file) return;
+
+            if (file.size > 100 * 1024 * 1024) {
+                showError('File size too large. Please choose a file under 100MB.');
+                return;
+            }
+
+            loading.style.display = 'block';
+            hideMessages();
+
+            const formData = new FormData();
+            formData.append('video', file);
+            formData.append('timestamp', new Date().toISOString());
+
+            fetch('/api/upload-video', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) throw new Error('Upload failed');
+                return response.json();
+            })
+            .then(data => {
+                loading.style.display = 'none';
+                showSuccess('Video uploaded successfully!');
+                removeSelection();
+                // New video will be added via WebSocket
+            })
+            .catch(error => {
+                loading.style.display = 'none';
+                showError('Failed to upload video. Please try again.');
+                console.error('Upload error:', error);
+            });
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+            setTimeout(() => { errorMessage.style.display = 'none'; }, 5000);
+        }
+
+        function showSuccess(message) {
+            successMessage.textContent = message;
+            successMessage.style.display = 'block';
+            setTimeout(() => { successMessage.style.display = 'none'; }, 3000);
+        }
+
+        function hideMessages() {
+            errorMessage.style.display = 'none';
+            successMessage.style.display = 'none';
+        }
+
+        let ws;
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+            
+            ws.onopen = () => console.log('WebSocket connected');
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'new_video') {
+                    addVideoToDisplay(data.video);
+                }
+            };
+            ws.onclose = () => {
+                console.log('WebSocket disconnected, reconnecting...');
+                setTimeout(connectWebSocket, 3000);
+            };
+            ws.onerror = (error) => console.error('WebSocket error:', error);
+        }
+
+        function addVideoToDisplay(videoData) {
+            const videoItem = document.createElement('div');
+            videoItem.className = 'video-item';
+            
+            const videoInfo = document.createElement('div');
+            videoInfo.className = 'video-info';
+            
+            const videoName = document.createElement('div');
+            videoName.className = 'video-name';
+            videoName.textContent = videoData.name;
+            
+            const videoTime = document.createElement('div');
+            videoTime.className = 'video-time';
+            videoTime.textContent = new Date(videoData.timestamp).toLocaleString();
+            
+            videoInfo.appendChild(videoName);
+            videoInfo.appendChild(videoTime);
+            
+            const video = document.createElement('video');
+            video.src = videoData.url;
+            video.controls = true;
+            video.preload = 'metadata';
+            
+            videoItem.appendChild(videoInfo);
+            videoItem.appendChild(video);
+            
+            videoDisplay.insertBefore(videoItem, videoDisplay.firstChild);
+        }
+
+        function loadExistingVideos() {
+            fetch('/api/videos')
+                .then(response => response.json())
+                .then(videos => {
+                    videoDisplay.innerHTML = ''; // Clear existing
+                    videos.forEach(addVideoToDisplay);
+                })
+                .catch(error => {
+                    console.error('Failed to load videos:', error);
+                });
+        }
+
+        window.addEventListener('load', () => {
+            connectWebSocket();
+            loadExistingVideos();
+        });
+    </script>
+</body>
+</html>
