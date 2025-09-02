@@ -10,7 +10,6 @@ const path = require('path');
 const cors = require('cors');
 
 // --- Cloudinary Configuration ---
-// This must be configured using environment variables on your hosting platform (Render)
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -42,7 +41,7 @@ const wss = new WebSocket.Server({ server });
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public')); // Serve static files like index.html and chat.html
+app.use(express.static('public'));
 
 // --- WebSocket Setup ---
 const clients = new Set();
@@ -123,6 +122,31 @@ app.post('/api/upload-video', upload.single('video'), (req, res) => {
   } catch (error) {
     console.error('Upload error:', error);
     res.status(500).json({ error: 'Failed to upload video' });
+  }
+});
+
+// API endpoint to delete a video
+app.delete('/api/videos/:id(*)', async (req, res) => {
+  try {
+    const videoId = req.params.id;
+    console.log(`Attempting to delete video with public_id: ${videoId}`);
+
+    const result = await cloudinary.uploader.destroy(videoId, { resource_type: 'video' });
+
+    if (result.result === 'ok' || result.result === 'not found') {
+      broadcast({
+        type: 'video_deleted',
+        videoId: videoId,
+      });
+      console.log(`Successfully deleted or did not find video: ${videoId}`);
+      res.json({ success: true, message: 'Video deleted successfully' });
+    } else {
+      throw new Error(result.result);
+    }
+
+  } catch (error) {
+    console.error('Delete error:', error);
+    res.status(500).json({ error: 'Failed to delete video' });
   }
 });
 
