@@ -6,14 +6,7 @@
     <title>Chat with Harsh</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 10px;
-            display: flex;
-            flex-direction: column;
-        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 10px; display: flex; flex-direction: column; }
         .container { flex-grow: 1; display: flex; flex-direction: column; max-width: 1400px; width: 100%; margin: 0 auto; background: rgba(255, 255, 255, 0.95); border-radius: 15px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); overflow: hidden; }
         .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 20px; text-align: center; position: relative; }
         .header h1 { margin: 0; font-size: 1.8rem; }
@@ -52,10 +45,18 @@
         @media (max-width: 768px) {
             .header { padding-bottom: 10px; }
             .back-btn { position: static; transform: none; margin-bottom: 10px; }
-            .main-content { flex-direction: column; }
-            .chat-wrapper, .video-wrapper { border-right: none; flex: 1; min-height: 0; display: flex; flex-direction: column; }
-            .video-wrapper.mobile-hidden { display: none; }
-            .chat-wrapper.mobile-hidden { display: none; }
+            .main-content { flex-grow: 1; position: relative; }
+            .chat-wrapper, .video-wrapper {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                border-right: none;
+            }
+            .chat-wrapper { display: flex; flex-direction: column; }
+            .video-wrapper { overflow-y: auto; padding: 10px; }
+            .video-wrapper.mobile-hidden, .chat-wrapper.mobile-hidden { display: none; }
             .mobile-nav { display: flex; background-color: #4a3f93; padding: 5px; }
             .mobile-nav-btn { flex: 1; background: transparent; border: 1px solid #fff; color: #fff; padding: 10px; margin: 5px; border-radius: 5px; cursor: pointer; }
             .mobile-nav-btn.active { background-color: #fff; color: #4a3f93; font-weight: bold; }
