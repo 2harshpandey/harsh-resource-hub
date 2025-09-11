@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+'''<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -131,7 +131,6 @@
         videoInput.addEventListener('change', (e) => { if (e.target.files.length > 0) { previewFile(e.target.files[0]); } });
         showChatBtn.addEventListener('click', showChatView);
         showVideosBtn.addEventListener('click', showVideosView);
-        window.addEventListener('load', () => { connectWebSocket(); loadExistingVideos(); });
 
         // --- Mobile View Functions ---
         function showChatView() {
@@ -171,6 +170,31 @@
         function connectWebSocket() { const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'; ws = new WebSocket(`${protocol}//${window.location.host}/ws`); ws.onopen = () => console.log('WebSocket connected'); ws.onmessage = (event) => { const data = JSON.parse(event.data); if (data.type === 'new_video') { addVideoToDisplay(data.video); } else if (data.type === 'video_deleted') { const videoElement = document.querySelector(`.video-item[data-id='${data.videoId}']`); if (videoElement) { videoElement.style.animation = 'fadeOut 0.5s forwards'; setTimeout(() => videoElement.remove(), 500); } } }; ws.onclose = () => { console.log('WebSocket disconnected, reconnecting...'); setTimeout(connectWebSocket, 3000); }; ws.onerror = (error) => console.error('WebSocket error:', error); }
         function addVideoToDisplay(videoData) { const videoItem = document.createElement('div'); videoItem.className = 'video-item'; videoItem.setAttribute('data-id', videoData.id); const deleteBtn = document.createElement('button'); deleteBtn.className = 'delete-video-btn'; deleteBtn.innerHTML = '&times;'; deleteBtn.onclick = () => handleDelete(videoData.id); const videoInfo = document.createElement('div'); videoInfo.className = 'video-info'; const videoName = document.createElement('div'); videoName.className = 'video-name'; videoName.textContent = videoData.name; const videoTime = document.createElement('div'); videoTime.className = 'video-time'; videoTime.textContent = new Date(videoData.timestamp).toLocaleString(); videoInfo.appendChild(videoName); videoInfo.appendChild(videoTime); const video = document.createElement('video'); video.src = videoData.url; video.controls = true; video.preload = 'metadata'; videoItem.appendChild(deleteBtn); videoItem.appendChild(videoInfo); videoItem.appendChild(video); videoDisplay.insertBefore(videoItem, videoDisplay.firstChild); }
         function loadExistingVideos() { fetch('/api/videos').then(response => response.json()).then(videos => { videoDisplay.innerHTML = ''; videos.forEach(addVideoToDisplay); }).catch(error => console.error('Failed to load videos:', error)); }
+
+        function adjustChatView() {
+            const isMobile = window.innerWidth <= 768;
+            if (isMobile) {
+                const viewportHeight = window.innerHeight;
+                const headerHeight = document.querySelector('.header').offsetHeight;
+                const navHeight = document.querySelector('.mobile-nav').offsetHeight;
+                const newHeight = viewportHeight - headerHeight - navHeight;
+                chatWrapper.style.height = `${newHeight}px`;
+                videoWrapper.style.height = `${newHeight}px`;
+            } else {
+                chatWrapper.style.height = '100%';
+                videoWrapper.style.height = '100%';
+            }
+        }
+
+        window.addEventListener('resize', adjustChatView);
+        window.addEventListener('load', () => {
+            connectWebSocket();
+            loadExistingVideos();
+            if (window.innerWidth <= 768) {
+                showChatView(); 
+            }
+            adjustChatView(); 
+        });
     </script>
 </body>
-</html>
+</html>'''
